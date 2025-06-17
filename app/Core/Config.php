@@ -63,7 +63,12 @@ class Config
                     
                     // 设置环境变量
                     self::$env[$key] = $value;
-                    putenv("$key=$value");
+                    
+                    // 检查 putenv 是否可用
+                    if (function_exists('putenv') && !in_array('putenv', explode(',', ini_get('disable_functions')))) {
+                        @putenv("$key=$value");
+                    }
+                    
                     $_ENV[$key] = $value;
                     $_SERVER[$key] = $value;
                 }
