@@ -14,6 +14,8 @@ $router->get('/consultation/form', 'ConsultationController@form');
 $router->post('/consultation/submit', 'ConsultationController@submit');
 $router->post('/consultation/saveDraft', 'ConsultationController@saveDraft');
 $router->get('/consultation/result/{id}', 'ConsultationController@result');
+$router->get('/consultation/check-status/{id}', 'ConsultationController@checkStatus');
+$router->get('/consultation/export/{id}', 'ConsultationController@exportPdf');
 
 // 患者相关路由
 $router->get('/patients', 'PatientController@index');

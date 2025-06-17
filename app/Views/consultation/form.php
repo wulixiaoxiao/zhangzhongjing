@@ -89,7 +89,7 @@
             <!-- 左侧表单区域 -->
             <div class="col-lg-9">
                 <form id="consultationForm" method="POST" action="/consultation/submit">
-                    <input type="hidden" name="_csrf_token" value="<?= $csrf_token ?>">
+                    <?php echo csrf_field(); ?>
                     
                     <!-- 基本信息 -->
                     <div class="form-section">
@@ -502,7 +502,7 @@
         function saveDraft() {
             const formData = new FormData(form);
             
-            fetch('/consultation/saveDraft', {
+            fetch('/index.php?url=consultation/autosave', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -537,13 +537,16 @@
             // 提交表单
             fetch(form.action, {
                 method: 'POST',
-                body: new FormData(form)
+                body: new FormData(form),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     // 跳转到结果页面
-                    window.location.href = '/consultation/result/' + data.consultation_id;
+                    window.location.href = data.redirect || '/index.php?url=consultation/result/' + data.consultation_id;
                 } else {
                     alert(data.message || '提交失败，请重试');
                     submitBtn.disabled = false;

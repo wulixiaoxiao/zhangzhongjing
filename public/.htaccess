@@ -1,14 +1,89 @@
+# 启用 URL 重写
 <IfModule mod_rewrite.c>
     RewriteEngine On
     
-    # 防止直接访问目录
-    Options -Indexes
+    # 防止直接访问隐藏文件
+    RewriteRule ^\.(.*)$ - [F]
     
-    # 重定向所有请求到 index.php
+    # 防止访问备份文件
+    RewriteRule \.(sql|bak|old|log)$ - [F]
+    
+    # 将所有请求重定向到 index.php
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
 </IfModule>
+
+# 防止目录浏览
+Options -Indexes
+
+# 防止执行 PHP 文件（除了 index.php）
+<FilesMatch "\.php$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "^(index|test-.*)\.php$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# 设置安全头
+<IfModule mod_headers.c>
+    # 防止点击劫持
+    Header always set X-Frame-Options "SAMEORIGIN"
+    
+    # 防止 MIME 类型嗅探
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # 启用 XSS 保护
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # 内容安全策略
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net;"
+    
+    # 引用策略
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # 功能策略
+    Header always set Feature-Policy "camera 'none'; microphone 'none'; geolocation 'self';"
+</IfModule>
+
+# 压缩文本文件
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json
+</IfModule>
+
+# 设置缓存
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # HTML
+    ExpiresByType text/html "access plus 0 seconds"
+    
+    # CSS 和 JavaScript
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    
+    # 图片
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>
+
+# 防止热链接
+<IfModule mod_rewrite.c>
+    RewriteCond %{HTTP_REFERER} !^$
+    RewriteCond %{HTTP_REFERER} !^https?://(www\.)?localhost [NC]
+    RewriteRule \.(jpg|jpeg|png|gif|svg)$ - [F]
+</IfModule>
+
+# 限制上传文件大小
+LimitRequestBody 10485760
+
+# 禁用服务器签名
+ServerSignature Off
 
 # 设置默认字符集
 AddDefaultCharset UTF-8

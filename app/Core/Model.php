@@ -709,4 +709,16 @@ abstract class Model
     {
         unset($this->attributes[$key]);
     }
+    
+    /**
+     * 更新模型数据
+     * 
+     * @param array $attributes
+     * @return bool
+     */
+    public function update(array $attributes)
+    {
+        $this->fill($attributes);
+        return $this->save();
+    }
 } 

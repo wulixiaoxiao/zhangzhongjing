@@ -156,6 +156,12 @@
                     <a href="/test-validation.php" class="btn btn-outline-secondary">
                         <i class="bi bi-check-circle"></i> 验证测试
                     </a>
+                    <a href="/test-patient.php" class="btn btn-outline-secondary">
+                        <i class="bi bi-users"></i> 患者测试
+                    </a>
+                    <a href="/test-consultation.php" class="btn btn-outline-secondary">
+                        <i class="bi bi-clipboard-pulse"></i> 问诊测试
+                    </a>
                 </div>
             </div>
         </div>

@@ -4,99 +4,128 @@ namespace App\Core;
 
 /**
  * 控制器基类
+ * 提供视图渲染、数据传递等基础功能
  */
 abstract class Controller
 {
     /**
-     * 加载视图
-     * 
-     * @param string $view 视图文件名
-     * @param array $data 传递给视图的数据
-     * @param bool $return 是否返回视图内容而不是直接输出
-     * @return string|void
+     * 当前请求的数据
      */
-    protected function view($view, $data = [], $return = false)
+    protected $request = [];
+    
+    /**
+     * 构造函数
+     */
+    public function __construct()
     {
-        // 将数组键转换为变量
+        // 初始化请求数据
+        $this->request = array_merge($_GET, $_POST);
+        
+        // 启动会话（如果还没有启动）
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+    }
+    
+    /**
+     * 渲染视图
+     * 
+     * @param string $view 视图文件路径（相对于 Views 目录）
+     * @param array $data 传递给视图的数据
+     * @return void
+     */
+    protected function view($view, $data = [])
+    {
+        // 将数据导出为变量
         extract($data);
         
+        // 添加安全辅助函数到视图
+        $escape = function($string) {
+            return Security::escape($string);
+        };
+        
+        $csrf_token = function() {
+            return Security::getCsrfToken();
+        };
+        
+        $csrf_field = function() {
+            $token = Security::getCsrfToken();
+            return '<input type="hidden" name="_csrf_token" value="' . $token . '">';
+        };
+        
         // 构建视图文件路径
-        $viewFile = APP_PATH . 'Views/' . str_replace('.', '/', $view) . '.php';
+        $viewFile = dirname(__DIR__) . '/Views/' . $view . '.php';
         
+        // 检查视图文件是否存在
         if (!file_exists($viewFile)) {
-            throw new \Exception("View file {$view} not found");
+            $this->error404("View file not found: $view");
+            return;
         }
         
-        if ($return) {
-            // 返回视图内容
-            ob_start();
-            require $viewFile;
-            return ob_get_clean();
-        } else {
-            // 直接输出视图
-            require $viewFile;
-        }
+        // 包含视图文件
+        require $viewFile;
     }
-
-    /**
-     * 加载模型
-     * 
-     * @param string $model 模型名称
-     * @return object
-     */
-    protected function model($model)
-    {
-        $modelClass = "App\\Models\\{$model}";
-        
-        if (!class_exists($modelClass)) {
-            throw new \Exception("Model {$modelClass} not found");
-        }
-        
-        return new $modelClass();
-    }
-
-    /**
-     * 重定向到指定 URL
-     * 
-     * @param string $url 目标 URL
-     * @param int $statusCode HTTP 状态码
-     */
-    protected function redirect($url, $statusCode = 302)
-    {
-        header("Location: {$url}", true, $statusCode);
-        exit;
-    }
-
+    
     /**
      * 返回 JSON 响应
      * 
      * @param mixed $data 要返回的数据
      * @param int $statusCode HTTP 状态码
+     * @return void
      */
     protected function json($data, $statusCode = 200)
     {
         header('Content-Type: application/json; charset=utf-8');
         http_response_code($statusCode);
-        echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        
+        // 防止 JSON 注入攻击
+        echo json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         exit;
     }
-
+    
+    /**
+     * 重定向
+     * 
+     * @param string $url 目标 URL
+     * @param int $statusCode HTTP 状态码
+     * @return void
+     */
+    protected function redirect($url, $statusCode = 302)
+    {
+        // 验证 URL 安全性
+        if (!Security::isSafeUrl($url) && strpos($url, '/') !== 0) {
+            $url = '/';
+        }
+        
+        header("Location: $url", true, $statusCode);
+        exit;
+    }
+    
+    /**
+     * 显示 404 错误页面
+     * 
+     * @param string $message 错误信息
+     * @return void
+     */
+    protected function error404($message = 'Page not found')
+    {
+        http_response_code(404);
+        $this->view('errors/404', ['message' => $message]);
+        exit;
+    }
+    
     /**
      * 获取请求参数
      * 
-     * @param string $key 参数键
+     * @param string $key 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
     protected function input($key, $default = null)
     {
-        if ($this->isPost()) {
-            return $_POST[$key] ?? $default;
-        }
-        
-        return $_GET[$key] ?? $default;
+        return $this->request[$key] ?? $default;
     }
-
+    
     /**
      * 获取所有请求参数
      * 
@@ -104,13 +133,20 @@ abstract class Controller
      */
     protected function all()
     {
-        if ($this->isPost()) {
-            return $_POST;
-        }
-        
-        return $_GET;
+        return $this->request;
     }
-
+    
+    /**
+     * 检查请求方法
+     * 
+     * @param string $method 请求方法
+     * @return bool
+     */
+    protected function isMethod($method)
+    {
+        return strtoupper($_SERVER['REQUEST_METHOD']) === strtoupper($method);
+    }
+    
     /**
      * 检查是否是 POST 请求
      * 
@@ -118,9 +154,9 @@ abstract class Controller
      */
     protected function isPost()
     {
-        return $_SERVER['REQUEST_METHOD'] === 'POST';
+        return $this->isMethod('POST');
     }
-
+    
     /**
      * 检查是否是 AJAX 请求
      * 
@@ -131,35 +167,126 @@ abstract class Controller
         return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
                strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
-
+    
     /**
-     * 验证 CSRF 令牌
+     * 设置会话数据
      * 
-     * @return bool
+     * @param string $key 键名
+     * @param mixed $value 值
+     * @return void
      */
-    protected function validateCsrf()
+    protected function setSession($key, $value)
     {
-        if (!$this->isPost()) {
-            return true;
-        }
-        
-        $token = $_POST['_csrf_token'] ?? '';
-        $sessionToken = $_SESSION['_csrf_token'] ?? '';
-        
-        return $token !== '' && $token === $sessionToken;
+        $_SESSION[$key] = $value;
     }
-
+    
     /**
-     * 生成 CSRF 令牌
+     * 获取会话数据
+     * 
+     * @param string $key 键名
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    protected function getSession($key, $default = null)
+    {
+        return $_SESSION[$key] ?? $default;
+    }
+    
+    /**
+     * 删除会话数据
+     * 
+     * @param string $key 键名
+     * @return void
+     */
+    protected function removeSession($key)
+    {
+        unset($_SESSION[$key]);
+    }
+    
+    /**
+     * 生成 CSRF Token
      * 
      * @return string
      */
     protected function generateCsrf()
     {
-        if (!isset($_SESSION['_csrf_token'])) {
-            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        return Security::generateCsrfToken();
+    }
+    
+    /**
+     * 验证 CSRF Token
+     * 
+     * @param string $token
+     * @return bool
+     */
+    protected function validateCsrf($token = null)
+    {
+        $token = $token ?: $this->input('_csrf_token');
+        return Security::validateCsrfToken($token);
+    }
+    
+    /**
+     * 要求 CSRF 验证
+     * 
+     * @return void
+     */
+    protected function requireCsrf()
+    {
+        if ($this->isPost() && !$this->validateCsrf()) {
+            $this->json(['error' => 'CSRF token validation failed'], 403);
+        }
+    }
+    
+    /**
+     * 验证 API 密钥
+     * 
+     * @return bool
+     */
+    protected function validateApiKey()
+    {
+        $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? $this->input('api_key');
+        return Security::validateApiKey($apiKey);
+    }
+    
+    /**
+     * 要求 API 密钥验证
+     * 
+     * @return void
+     */
+    protected function requireApiKey()
+    {
+        if (!$this->validateApiKey()) {
+            $this->json(['error' => 'Invalid API key'], 401);
+        }
+    }
+    
+    /**
+     * 记录安全日志
+     * 
+     * @param string $event 事件类型
+     * @param array $data 相关数据
+     * @return void
+     */
+    protected function logSecurity($event, $data = [])
+    {
+        $logData = [
+            'event' => $event,
+            'ip' => Security::getClientIp(),
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'time' => date('Y-m-d H:i:s'),
+            'data' => $data
+        ];
+        
+        // 记录到安全日志文件
+        $logFile = dirname(__DIR__, 2) . '/storage/logs/security.log';
+        $logDir = dirname($logFile);
+        
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
         }
         
-        return $_SESSION['_csrf_token'];
+        file_put_contents($logFile, json_encode($logData) . "\n", FILE_APPEND | LOCK_EX);
     }
 } 

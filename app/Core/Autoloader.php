@@ -20,10 +20,11 @@ class Autoloader
         spl_autoload_register([$this, 'loadClass']);
         
         // 注册默认命名空间
-        $this->addNamespace('App', APP_PATH);
+        $appPath = dirname(__DIR__);
+        $this->addNamespace('App', $appPath);
         
         // 加载辅助函数
-        $helpersFile = dirname(APP_PATH) . '/src/helpers.php';
+        $helpersFile = dirname($appPath) . '/src/helpers.php';
         if (file_exists($helpersFile)) {
             require_once $helpersFile;
         }

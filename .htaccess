@@ -1,0 +1,23 @@
+# 防止直接访问应用文件
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # 禁止访问所有文件，除了 public 目录
+    RewriteRule ^(app|config|database|scripts|src|storage|vendor)/.*$ - [F]
+    
+    # 禁止访问 .env 文件
+    RewriteRule ^\.env$ - [F]
+    
+    # 禁止访问 composer 文件
+    RewriteRule ^composer\.(json|lock)$ - [F]
+    
+    # 重定向到 public 目录
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# 防止目录浏览
+Options -Indexes
+
+# 防止访问 .git 目录
+RedirectMatch 404 /\.git 
