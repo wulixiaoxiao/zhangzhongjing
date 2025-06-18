@@ -283,16 +283,6 @@ class ConsultationController extends Controller
             $errors['gender'] = '请选择性别';
         }
         
-        if (empty($data['birth_date'])) {
-            $errors['birth_date'] = '请输入出生日期';
-        }
-        
-        if (empty($data['phone'])) {
-            $errors['phone'] = '请输入联系电话';
-        } elseif (!preg_match('/^1[3-9]\d{9}$/', $data['phone'])) {
-            $errors['phone'] = '请输入正确的手机号码';
-        }
-        
         // 主诉验证
         if (empty($data['chief_complaint'])) {
             $errors['chief_complaint'] = '请输入主诉';
