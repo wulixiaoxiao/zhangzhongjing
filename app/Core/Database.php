@@ -33,6 +33,36 @@ class Database
     private static $initialized = false;
     
     /**
+     * PDO实例
+     */
+    private static $pdo = null;
+    
+    /**
+     * 查询计数器
+     */
+    private static $queryCount = 0;
+    
+    /**
+     * 查询执行时间记录
+     */
+    private static $queryTime = 0;
+    
+    /**
+     * 慢查询日志阈值（毫秒）
+     */
+    private static $slowQueryThreshold = 1000;
+    
+    /**
+     * 查询缓存
+     */
+    private static $queryCache = [];
+    
+    /**
+     * 缓存启用状态
+     */
+    private static $cacheEnabled = true;
+    
+    /**
      * 初始化数据库配置
      */
     private static function initialize()
@@ -179,6 +209,10 @@ class Database
      */
     public static function beginTransaction($name = null)
     {
+        // 清除缓存
+        if (self::$cacheEnabled) {
+            self::clearCache();
+        }
         return self::connection($name)->beginTransaction();
     }
     
@@ -190,6 +224,10 @@ class Database
      */
     public static function commit($name = null)
     {
+        // 清除缓存
+        if (self::$cacheEnabled) {
+            self::clearCache();
+        }
         return self::connection($name)->commit();
     }
     
@@ -205,7 +243,7 @@ class Database
     }
     
     /**
-     * 执行原始 SQL 查询
+     * 执行原始 SQL 查询（带性能监控）
      * 
      * @param string $sql SQL 语句
      * @param array $bindings 绑定参数
@@ -214,6 +252,18 @@ class Database
      */
     public static function query($sql, $bindings = [], $name = null)
     {
+        $startTime = microtime(true);
+        
+        // 生成缓存键
+        $cacheKey = md5($sql . serialize($bindings));
+        
+        // 检查缓存（仅对SELECT查询）
+        if (self::$cacheEnabled && stripos(trim($sql), 'SELECT') === 0) {
+            if (isset(self::$queryCache[$cacheKey])) {
+                return self::$queryCache[$cacheKey];
+            }
+        }
+        
         $connection = self::connection($name);
         $statement = $connection->prepare($sql);
         
@@ -227,6 +277,17 @@ class Database
         }
         
         $statement->execute();
+        
+        // 记录查询统计
+        $executionTime = (microtime(true) - $startTime) * 1000; // 转换为毫秒
+        self::$queryCount++;
+        self::$queryTime += $executionTime;
+        
+        // 记录慢查询
+        if ($executionTime > self::$slowQueryThreshold) {
+            self::logSlowQuery($sql, $bindings, $executionTime);
+        }
+        
         return $statement;
     }
     
@@ -340,5 +401,94 @@ class Database
         $sql = "SHOW TABLES LIKE ?";
         $result = self::selectOne($sql, [$table], $name);
         return !empty($result);
+    }
+
+
+
+    /**
+     * 记录慢查询
+     */
+    private static function logSlowQuery($sql, $params, $executionTime)
+    {
+        $logFile = STORAGE_PATH . 'logs/slow_queries.log';
+        $logEntry = sprintf(
+            "[%s] 执行时间: %.2fms | SQL: %s | 参数: %s\n",
+            date('Y-m-d H:i:s'),
+            $executionTime,
+            $sql,
+            json_encode($params)
+        );
+        
+        error_log($logEntry, 3, $logFile);
+    }
+
+    /**
+     * 清除查询缓存
+     */
+    public static function clearCache()
+    {
+        self::$queryCache = [];
+    }
+
+    /**
+     * 设置缓存状态
+     */
+    public static function setCacheEnabled($enabled)
+    {
+        self::$cacheEnabled = (bool)$enabled;
+    }
+
+    /**
+     * 获取查询统计信息
+     */
+    public static function getQueryStats()
+    {
+        return [
+            'query_count' => self::$queryCount,
+            'total_time' => round(self::$queryTime, 2),
+            'average_time' => self::$queryCount > 0 ? round(self::$queryTime / self::$queryCount, 2) : 0,
+            'cache_size' => count(self::$queryCache)
+        ];
+    }
+    
+    /**
+     * 重置查询统计
+     */
+    public static function resetQueryStats()
+    {
+        self::$queryCount = 0;
+        self::$queryTime = 0;
+    }
+    
+    /**
+     * 批量插入数据
+     * 
+     * @param string $table 表名
+     * @param array $data 数据数组
+     * @param string $name 连接名称
+     * @return bool
+     */
+    public static function batchInsert($table, $data, $name = null)
+    {
+        if (empty($data)) {
+            return false;
+        }
+        
+        $columns = array_keys($data[0]);
+        $columnStr = '`' . implode('`, `', $columns) . '`';
+        $placeholders = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+        
+        $values = [];
+        $params = [];
+        foreach ($data as $row) {
+            $values[] = $placeholders;
+            foreach ($columns as $column) {
+                $params[] = $row[$column] ?? null;
+            }
+        }
+        
+        $sql = "INSERT INTO `{$table}` ({$columnStr}) VALUES " . implode(', ', $values);
+        
+        return self::statement($sql, $params, $name);
     }
 } 

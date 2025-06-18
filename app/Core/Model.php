@@ -187,6 +187,17 @@ abstract class Model
     }
     
     /**
+     * 根据ID查找记录（find的别名）
+     * 
+     * @param mixed $id
+     * @return static|null
+     */
+    public static function findById($id)
+    {
+        return static::find($id);
+    }
+    
+    /**
      * 根据条件查找第一条记录
      * 
      * @param array $conditions

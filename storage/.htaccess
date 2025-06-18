@@ -1,1 +1,8 @@
- 
+# 禁止直接访问
+Order deny,allow
+Deny from all
+
+# 对于Apache 2.4+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule> 

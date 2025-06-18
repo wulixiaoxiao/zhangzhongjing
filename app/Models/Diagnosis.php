@@ -74,6 +74,17 @@ class Diagnosis extends Model
     ];
     
     /**
+     * 根据问诊ID查找诊断
+     * 
+     * @param int $consultationId
+     * @return Diagnosis|null
+     */
+    public static function findByConsultationId($consultationId)
+    {
+        return static::findWhere(['consultation_id' => $consultationId]);
+    }
+    
+    /**
      * 解析AI响应并创建诊断
      * 
      * @param int $consultationId

@@ -36,15 +36,17 @@ class Prescription extends Model
      * 可批量赋值的字段
      */
     protected $fillable = [
-        'consultation_id',
+        'diagnosis_id',
+        'prescription_no',
         'prescription_name',
+        'prescription_type',
         'herbs',
+        'usage_method',
         'dosage',
-        'preparation_method',
-        'duration_days',
-        'modifications',
-        'contraindications',
-        'notes'
+        'frequency',
+        'duration',
+        'precautions',
+        'contraindications'
     ];
     
     /**
@@ -73,6 +75,17 @@ class Prescription extends Model
         'contraindications' => 'safe_text',
         'notes' => 'safe_text'
     ];
+    
+    /**
+     * 根据诊断ID查找处方
+     * 
+     * @param int $diagnosisId
+     * @return Prescription|null
+     */
+    public static function findByDiagnosisId($diagnosisId)
+    {
+        return static::findWhere(['diagnosis_id' => $diagnosisId]);
+    }
     
     /**
      * 从AI响应创建处方
